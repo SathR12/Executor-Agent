@@ -1,0 +1,17 @@
+# Environment variables
+.env
+
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+
+# Generated programs are local run artifacts.
+runs/
+
+# Local style-tool cache.
+.ruff_cache/

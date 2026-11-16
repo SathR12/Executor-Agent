@@ -1,0 +1,14 @@
+# Allow only the executor into the build context; exclude .env, .git, and .venv.
+**
+!Dockerfile.executor
+!src/
+src/**
+!src/executor.py
+
+# Keep credential and environment exclusions explicit even if the allowlist changes.
+.env
+.env.*
+.git
+.venv
+runs
+.ruff_cache
