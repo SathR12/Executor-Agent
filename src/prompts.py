@@ -1,3 +1,5 @@
+"""Define the function-body format and MCP tool contract given to Gemini."""
+
 SYSTEM_PROMPT = """
 You are a Python coding agent that solves user requests by generating Python code.
 

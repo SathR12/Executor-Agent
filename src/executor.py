@@ -1,10 +1,14 @@
+"""Receive generated code inside Docker and request host tools through JSON pipes."""
+
 import asyncio
 import json
+import linecache
 import sys
-import textwrap
+import traceback
 
 
 async def call_tool(name: str, arguments: dict):
+    """Ask the host agent to call one MCP tool and wait for its JSON response."""
     request = {"name": name, "args": arguments}
     print(json.dumps(request), flush=True)
 
@@ -16,28 +20,21 @@ async def call_tool(name: str, arguments: dict):
 
 
 def print_result(*values, **options):
+    """Keep generated output on stderr so stdout contains only tool requests."""
     options["file"] = sys.stderr
     options["flush"] = True
     print(*values, **options)
 
 
 async def main():
+    """Compile the saved program received from the host and run it in this container."""
     line = await asyncio.to_thread(sys.stdin.readline)
     if not line:
         raise RuntimeError("Agent did not send any code")
 
     message = json.loads(line)
-    code = message["code"].strip()
-
-    # Remove Markdown fences if the model included them.
-    lines = code.splitlines()
-    if lines and lines[0].strip().lower() in ("```python", "```"):
-        if lines[-1].strip() != "```":
-            raise RuntimeError("Generated code has an unclosed Markdown fence")
-        code = "\n".join(lines[1:-1]).strip()
-
-    if not code:
-        raise RuntimeError("Generated code is empty")
+    source = message["code"]
+    filename = message.get("filename", "<generated>")
 
     # Provide functions that generated code can use.
     namespace = {
@@ -45,14 +42,21 @@ async def main():
         "print": print_result,
     }
 
-    # Wrap the generated body in an async function.
-    source = "async def generated_main():\n"
-    source += textwrap.indent(code, "    ")
-
-    # Define the function, then execute it.
-    exec(compile(source, "<generated>", "exec"), namespace)
+    # Include the saved filename and source lines in generated-code tracebacks.
+    linecache.cache[filename] = (
+        len(source),
+        None,
+        source.splitlines(keepends=True),
+        filename,
+    )
+    exec(compile(source, filename, "exec"), namespace)
     await namespace["generated_main"]()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except Exception:
+        # Python's traceback module includes source from the in-memory cache.
+        traceback.print_exc(file=sys.stderr)
+        raise SystemExit(1) from None
